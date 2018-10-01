@@ -1,19 +1,37 @@
-$app = Get-WmiObject -Class Win32_Product | Where-Object { 
-    $_.Name -match "Microsoft .NET Core SDK" 
+#Requires -Version 3.0
+#Requires -RunAsAdministrator
+[CmdletBinding(SupportsShouldProcess=$true)]
+Param ()
+
+#Function to remove a single version of dotnetCore - supports -whatif
+Function Remove-DotNetCore {
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param ([string] $GUID )
+
+    if ($PSCmdlet.ShouldProcess($GUID)) {
+        pushd $env:SYSTEMROOT\System32
+        Start-Process msiexec -wait -ArgumentList ("/x $GUID /qn IGNOREDEPENDENCIES=ALL")
+        popd
+    }
 }
 
+#Get all installed apps from Registry matching .Net Core SDK
+$DotNetCoreSDKInstalls = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'  | 
+         Where-Object {$_.displayname -match 'Microsoft .NET Core SDK'} | 
+         Select-Object DisplayName, DisplayVersion, UninstallString 
+
+
 #Keep latest
-$app | Sort-Object { [System.Version]::new($_.Version)} -Descending | 
+$DotNetCoreSDKInstalls | Sort-Object { [System.Version]::new($_.DisplayVersion)} -Descending | 
     Select-Object -First  1 | ForEach-Object { 
-        Write-Host ("Keeping " + $_.Name + " version " + $_.Version)
+        Write-Host ("Keeping " + $_.DisplayName + " version " + $_.DisplayVersion)
     }
 
 #Convert WMI version to System.version, sort decending, skip latest 
-$app | Sort-Object { [System.Version]::new($_.Version)} -Descending | 
+$DotNetCoreSDKInstalls | Sort-Object { [System.Version]::new($_.DisplayVersion)} -Descending | 
     Select-Object -Skip 1 | 
         ForEach-Object { 
-            Write-Host ("*** Removing  " + $_.Name + " version " + $_.Version + " IdentifyingNumber: " + $_.IdentifyingNumber)
-            pushd $env:SYSTEMROOT\System32
-            Start-Process msiexec -wait -ArgumentList ("/x " + $_.identifyingnumber + " /qn IGNOREDEPENDENCIES=ALL")
-            popd
+            $IdentifyingNumber = "{" + $_.UninstallString.split("{")[1]
+            Write-Host ("*** Removing  " + $_.DisplayName + " version " + $_.DisplayVersion + " Uninstall: " + $_.UninstallString)
+            Remove-DotNetCore -GUID $IdentifyingNumber
         }
