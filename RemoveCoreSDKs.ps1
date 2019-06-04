@@ -1,11 +1,21 @@
-$app = Get-WmiObject -Class Win32_Product | Where-Object { 
-    $_.Name -match "Microsoft .NET Core SDK" 
-}
+[CmdletBinding()]
+    param (
+        $DisplayName = "Microsoft .NET Core SDK"
+    )
 
-Write-Host $app.Name 
-Write-Host $app.IdentifyingNumber
-pushd $env:SYSTEMROOT\System32
+    $VerbosePreference = "Continue"
 
-$app.identifyingnumber |% { Start-Process msiexec -wait -ArgumentList "/x $_" }
+    $apps = Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | `
+    Where-Object { $_.DisplayName -match $DisplayName } 
 
-popd
+    foreach ($app in $apps) {
+
+        $exepath = $app.QuietUninstallString.Substring(1, $app.QuietUninstallString.LastIndexOf("`"")-1)
+        $exeargs = $app.QuietUninstallString.Substring($app.QuietUninstallString.LastIndexOf("`"")+2)
+
+        if (Test-Path $exepath) {
+
+            Write-Verbose "Uninstalling $($app.DisplayName)..."
+            Start-Process -FilePath $exepath -ArgumentList $exeargs -Wait -NoNewWindow -PassThru
+        }
+    }
