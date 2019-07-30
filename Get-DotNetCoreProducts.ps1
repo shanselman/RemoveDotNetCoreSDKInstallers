@@ -15,3 +15,4 @@ $Products | ForEach-Object {
         Sort-Object { [System.Version]::new($_.DisplayVersion)} -Descending | 
         Select-Object DisplayName, DisplayVersion, UninstallString 
 }
+#Best viewed with .\Get-DotNetCoreProducts.ps1 | FT -autosize 
